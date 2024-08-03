@@ -39,7 +39,8 @@ pub use plan::{
     DistinctOn, EmptyRelation, Explain, Extension, Filter, Join, JoinConstraint,
     JoinType, Limit, LogicalPlan, Partitioning, PlanType, Prepare, Projection,
     RecursiveQuery, Repartition, Sort, StringifiedPlan, Subquery, SubqueryAlias,
-    TableScan, ToStringifiedPlan, Union, Unnest, Values, Window,
+    TableScan, ToStringifiedPlan, Union, Unnest, UserDefinedTableFunction, Values,
+    Window,
 };
 pub use statement::{
     SetVariable, Statement, TransactionAccessMode, TransactionConclusion, TransactionEnd,

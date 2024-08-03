@@ -277,6 +277,8 @@ pub enum LogicalPlan {
     Unnest(Unnest),
     /// A variadic query (e.g. "Recursive CTEs")
     RecursiveQuery(RecursiveQuery),
+    // UDTF
+    UserDefinedTableFunction(UserDefinedTableFunction),
 }
 
 impl Default for LogicalPlan {
@@ -326,6 +328,9 @@ impl LogicalPlan {
             LogicalPlan::RecursiveQuery(RecursiveQuery { static_term, .. }) => {
                 // we take the schema of the static term as the schema of the entire recursive query
                 static_term.schema()
+            }
+            LogicalPlan::UserDefinedTableFunction(user_defined_table_function) => {
+                &user_defined_table_function.schema
             }
         }
     }
@@ -473,6 +478,13 @@ impl LogicalPlan {
                 recursive_term,
                 ..
             }) => vec![static_term, recursive_term],
+            LogicalPlan::UserDefinedTableFunction(UserDefinedTableFunction {
+                input,
+                ..
+            }) => match input {
+                Some(input) => vec![input],
+                None => vec![],
+            },
             // plans without inputs
             LogicalPlan::TableScan { .. }
             | LogicalPlan::Statement { .. }
@@ -584,6 +596,10 @@ impl LogicalPlan {
                     .map_or(Ok(None), |v| v.map(Some))
             }
             LogicalPlan::Subquery(_) => Ok(None),
+            LogicalPlan::UserDefinedTableFunction(UserDefinedTableFunction {
+                expressions,
+                ..
+            }) => Ok(Some(expressions.as_slice()[0].clone())),
             LogicalPlan::EmptyRelation(_)
             | LogicalPlan::Prepare(_)
             | LogicalPlan::Statement(_)
@@ -768,6 +784,7 @@ impl LogicalPlan {
                 // Update schema with unnested column type.
                 unnest_with_options(unwrap_arc(input), exec_columns, options)
             }
+            LogicalPlan::UserDefinedTableFunction(_) => Ok(self),
         }
     }
 
@@ -1090,6 +1107,8 @@ impl LogicalPlan {
                     unnest_with_options(input, columns.clone(), options.clone())?;
                 Ok(new_plan)
             }
+            // user defined table function's expressions should not be modified.
+            LogicalPlan::UserDefinedTableFunction(_) => Ok(self.clone()),
         }
     }
     /// Replaces placeholder param values (like `$1`, `$2`) in [`LogicalPlan`]
@@ -1263,6 +1282,7 @@ impl LogicalPlan {
             | LogicalPlan::DescribeTable(_)
             | LogicalPlan::Prepare(_)
             | LogicalPlan::Statement(_)
+            | LogicalPlan::UserDefinedTableFunction(_)
             | LogicalPlan::Extension(_) => None,
         }
     }
@@ -1874,6 +1894,10 @@ impl LogicalPlan {
                         write!(f, "Unnest: lists[{}] structs[{}]", 
                         expr_vec_fmt!(list_type_columns),
                         expr_vec_fmt!(struct_type_columns))
+                    },
+                    LogicalPlan::UserDefinedTableFunction(UserDefinedTableFunction {udtf_name,expressions,.. }) => {
+                        write!(f, "UserDefinedTableFunction: table_name=[{}] expr: [{}]",udtf_name,expr_vec_fmt!(expressions))?;
+                        Ok(())
                     }
                 }
             }
@@ -3525,4 +3549,16 @@ digraph {
         let actual = format!("{}", plan.display_indent());
         assert_eq!(expected.to_string(), actual)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct UserDefinedTableFunction {
+    // udtf name
+    pub udtf_name: Arc<str>,
+    // expressions to call udtf
+    pub expressions: Vec<Expr>,
+    // input of udtf
+    pub input: Option<Arc<LogicalPlan>>,
+    /// The schema description of the output
+    pub schema: DFSchemaRef,
 }

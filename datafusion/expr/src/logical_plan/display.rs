@@ -23,7 +23,7 @@ use crate::{
     expr_vec_fmt, Aggregate, DescribeTable, Distinct, DistinctOn, DmlStatement, Expr,
     Filter, Join, Limit, LogicalPlan, Partitioning, Prepare, Projection, RecursiveQuery,
     Repartition, Sort, Subquery, SubqueryAlias, TableProviderFilterPushDown, TableScan,
-    Unnest, Values, Window,
+    Unnest, UserDefinedTableFunction, Values, Window,
 };
 
 use crate::dml::CopyTo;
@@ -657,6 +657,17 @@ impl<'a, 'b> PgJsonVisitor<'a, 'b> {
                     "Node Type": "Unnest",
                     "ListColumn": expr_vec_fmt!(list_type_columns),
                     "StructColumn": expr_vec_fmt!(struct_type_columns),
+                })
+            }
+            LogicalPlan::UserDefinedTableFunction(UserDefinedTableFunction {
+                udtf_name,
+                expressions,
+                ..
+            }) => {
+                json!({
+                    "Node Type": "UserDefinedTableFunction",
+                    "Expressions": expr_vec_fmt!(expressions),
+                    "User Deefined Table Funection Name":  udtf_name.clone().as_ref(),
                 })
             }
         }

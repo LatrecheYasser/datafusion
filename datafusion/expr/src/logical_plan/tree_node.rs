@@ -41,7 +41,7 @@ use crate::{
     DdlStatement, Distinct, DistinctOn, DmlStatement, Explain, Expr, Extension, Filter,
     Join, Limit, LogicalPlan, Partitioning, Prepare, Projection, RecursiveQuery,
     Repartition, Sort, Subquery, SubqueryAlias, TableScan, Union, Unnest,
-    UserDefinedLogicalNode, Values, Window,
+    UserDefinedLogicalNode, UserDefinedTableFunction, Values, Window,
 };
 use std::sync::Arc;
 
@@ -366,6 +366,22 @@ impl TreeNode for LogicalPlan {
             | LogicalPlan::EmptyRelation { .. }
             | LogicalPlan::Values { .. }
             | LogicalPlan::DescribeTable(_) => Transformed::no(self),
+            LogicalPlan::UserDefinedTableFunction(UserDefinedTableFunction {
+                ref input,
+                ref expressions,
+                ref schema,
+                ref udtf_name,
+            }) => match input {
+                Some(input) => rewrite_arc(input.clone(), f)?.update_data(|input| {
+                    LogicalPlan::UserDefinedTableFunction(UserDefinedTableFunction {
+                        input: Some(input),
+                        udtf_name: udtf_name.clone(),
+                        schema: schema.clone(),
+                        expressions: expressions.clone(),
+                    })
+                }),
+                None => Transformed::no(self),
+            },
         })
     }
 }
@@ -525,7 +541,8 @@ impl LogicalPlan {
             | LogicalPlan::Ddl(_)
             | LogicalPlan::Copy(_)
             | LogicalPlan::DescribeTable(_)
-            | LogicalPlan::Prepare(_) => Ok(TreeNodeRecursion::Continue),
+            | LogicalPlan::Prepare(_)
+            | LogicalPlan::UserDefinedTableFunction(_) => Ok(TreeNodeRecursion::Continue),
         }
     }
 
@@ -730,7 +747,8 @@ impl LogicalPlan {
             | LogicalPlan::Ddl(_)
             | LogicalPlan::Copy(_)
             | LogicalPlan::DescribeTable(_)
-            | LogicalPlan::Prepare(_) => Transformed::no(self),
+            | LogicalPlan::Prepare(_)
+            | LogicalPlan::UserDefinedTableFunction(_) => Transformed::no(self),
         })
     }
 
