@@ -80,7 +80,7 @@ pub mod unnest;
 pub mod values;
 pub mod windows;
 pub mod work_table;
-
+pub mod user_defined_table_function;
 pub mod udaf {
     pub use datafusion_physical_expr_functions_aggregate::aggregate::AggregateFunctionExpr;
 }
